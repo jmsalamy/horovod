@@ -163,14 +163,16 @@ if hvd.rank() == 0:
 # Over-sampling of validation data helps to increase probability that every validation
 # example will be evaluated.
 model.fit_generator(train_iter,
-                    steps_per_epoch=len(train_iter) // hvd.size(),
+                    #steps_per_epoch=len(train_iter) // hvd.size(),
+                    steps_per_epoch = 500,
                     callbacks=callbacks,
                     epochs=args.epochs,
                     verbose=verbose,
                     workers=4,
                     initial_epoch=resume_from_epoch,
                     validation_data=test_iter,
-                    validation_steps=3 * len(test_iter) // hvd.size())
+                    #validation_steps=3 * len(test_iter) // hvd.size())
+                    validation_steps = 100 )
 
 # Evaluate the model on the full data set.
 score = hvd.allreduce(model.evaluate_generator(test_iter, len(test_iter), workers=4))
