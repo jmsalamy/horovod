@@ -43,7 +43,9 @@ public:
 
 protected:
   MPIContext* mpi_context_;
-};
+  uint64_t total_elem;
+  uint64_t drop_elem;
+  };
 
 class MPIAllgather : public AllgatherOp {
 public:
