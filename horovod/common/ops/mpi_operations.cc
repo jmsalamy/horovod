@@ -15,6 +15,8 @@
 // =============================================================================
 
 #include "mpi_operations.h"
+#include <stdlib.h>
+#include <time.h>
 
 namespace horovod {
 namespace common {
@@ -45,6 +47,36 @@ Status MPIAllreduce::Execute(std::vector<TensorTableEntry>& entries, const Respo
   timeline.ActivityStartAll(entries, MPI_ALLREDUCE);
   const void* sendbuf = entries.size() > 1 || first_entry.tensor->data() == first_entry.output->data()
                         ? MPI_IN_PLACE : first_entry.tensor->data();
+  
+  //Code block to implement fractional drops of data 
+  int world_rank;
+  MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);
+  srand((world_rank+1)*time(0));
+  int upper = 100;
+  int lower = 1;
+  int num = (rand() % (upper - lower + 1)) + lower;
+  total_elem = total_elem + (uint64_t(num_elements)/1000000); 
+  if (num <= 70) {
+	  //float zero = 0;
+	  void* zero_buf;
+	  if (sendbuf == MPI_IN_PLACE) {
+		  zero_buf = buffer_data;
+	  } else {
+		  zero_buf = (void*) sendbuf;
+	  }
+	  /*void* data_offset;
+	  for (int i = 0; i < num_elements; i++) {
+		 data_offset = zero_buf + (sizeof(float)*i);
+		 std::memcpy(data_offset, &zero, sizeof(float));
+	  }*/
+	  memset(zero_buf, 0, sizeof(float)*num_elements);
+	  drop_elem = drop_elem + (uint64_t(num_elements)/1000000);
+	  std::ofstream ofs;
+	  ofs.open("drop_280_percent_log.txt", std::ofstream::out | std::ofstream::app);
+	  ofs << world_rank << ": " << unsigned(drop_elem) << "/" << unsigned(total_elem) << "\n";
+	  ofs.close();
+  }
+
   int op = MPI_Allreduce(sendbuf, buffer_data,
                          (int) num_elements,
                          mpi_context_->GetMPIDataType(first_entry.tensor),
