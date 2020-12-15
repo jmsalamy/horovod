@@ -16,7 +16,7 @@
 import os
 import sys
 
-from horovod.run.common.util import codec, secret
+from horovod.runner.common.util import codec, secret
 from horovod.spark.driver.rsh import rsh
 
 
@@ -49,4 +49,4 @@ if __name__ == '__main__':
 
     # Since tasks with the same host hash have shared memory,
     # we will run only one orted process on the first task.
-    rsh(addresses, key, settings, host_hash, command, env, 0)
+    rsh(addresses, key, host_hash, command, env, 0, settings.verbose)

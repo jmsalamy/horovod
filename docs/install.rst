@@ -3,6 +3,21 @@
 Horovod Installation Guide
 ==========================
 
+Requirements
+------------
+
+- Python >= 3.6
+- CMake
+- TensorFlow, PyTorch, or MXNet
+- (Optional) MPI
+
+For best performance on GPU:
+
+- `NCCL 2 <https://developer.nvidia.com/nccl>`__
+
+If Horovod in unable to find the CMake binary, you may need to set ``HOROVOD_CMAKE`` in your environment before
+installing.
+
 Frameworks
 ----------
 
@@ -56,11 +71,17 @@ above is installed.
 MXNet
 ~~~~~
 
-To ensure that Horovod is built with MXNet support enabled:
+To ensure that Horovod is built with MXNet CPU support enabled:
 
 .. code-block:: bash
 
     $ HOROVOD_WITH_MXNET=1 pip install horovod[mxnet]
+
+To ensure that Horovod is built with MXNet GPU support enabled for CUDA 10.2:
+
+.. code-block:: bash
+
+    $ HOROVOD_WITH_MXNET=1 pip install horovod[mxnet-cu102]
 
 To skip MXNet, set ``HOROVOD_WITHOUT_MXNET=1`` in your environment.
 
@@ -126,8 +147,11 @@ Gloo mode uses ``horovodrun`` to launch worker processes.
 
 Gloo is required to use the elastic / fault tolerant API for Horovod.
 
-If Horovod in unable to find the CMake binary, you may need to set ``HOROVOD_CMAKE`` in your environment before
-installing.
+**Note**: macOS users must install `libuv <https://github.com/libuv/libuv>`_ in order to use Gloo:
+
+.. code-block:: bash
+
+    $ brew install libuv
 
 Tensor Operations
 -----------------
@@ -141,8 +165,8 @@ will be used for CPU operations. You can override this by setting ``HOROVOD_CPU_
 NCCL
 ~~~~
 
-NCCL is currently supported for Allreduce and Broadcast operations.  You can enable these by setting
-``HOROVOD_GPU_ALLREDUCE=NCCL HOROVOD_GPU_BROADCAST=NCCL`` during installation.
+NCCL is supported for Allreduce, Allgather, and Broadcast operations.  You can enable these by setting
+``HOROVOD_GPU_OPERATIONS=NCCL`` during installation.
 
 NCCL operations are supported on both Nvidia (CUDA) and AMD (ROCm) GPUs. You can set ``HOROVOD_GPU`` in your
 environment to specify building with CUDA or ROCm. CUDA will be assumed if not specified.
@@ -166,7 +190,7 @@ oneCCL
 ~~~~~~
 
 oneCCL is an Intel library for accelerated collective operations on CPU. See
-`Horovod with Intel(R) oneCCL <oneccl.md>`_ for more details.
+`Horovod with Intel(R) oneCCL <oneccl.rst>`_ for more details.
 
 Set ``HOROVOD_CPU_OPERATIONS=CCL`` to use oneCCL.
 
@@ -189,6 +213,11 @@ diagnose failures:
     $ pip uninstall horovod
     $ HOROVOD_WITH_...=1 pip install --no-cache-dir horovod
 
+Installing Horovod with Conda (+pip)
+------------------------------------
+
+To use Conda to install PyTorch, TensorFlow, MXNet, Horovod, as well as GPU depdencies such as 
+NVIDIA CUDA Toolkit, cuDNN, NCCL, etc., see `Build a Conda Environment with GPU Support for Horovod <conda.rst>`_.
 
 Environment Variables
 ---------------------
@@ -198,10 +227,8 @@ Optional environment variables that can be set to configure the installation pro
 Possible values are given in curly brackets: {}.
 
 * ``HOROVOD_BUILD_ARCH_FLAGS`` - additional C++ compilation flags to pass in for your build architecture.
-* ``HOROVOD_MPICXX_SHOW`` - custom command to show MPI compilation flags (default: ``mpicxx -show``).
 * ``HOROVOD_CUDA_HOME`` - path where CUDA include and lib directories can be found.
-* ``HOROVOD_CUDA_INCLUDE`` - path to CUDA include directory.
-* ``HOROVOD_CUDA_LIB`` - path to CUDA lib directory.
+* ``HOROVOD_BUILD_CUDA_CC_LIST`` - List of compute capabilities to build Horovod CUDA kernels for (example: ``HOROVOD_BUILD_CUDA_CC_LIST=60,70,75``)
 * ``HOROVOD_ROCM_HOME`` - path where ROCm include and lib directories can be found.
 * ``HOROVOD_NCCL_HOME`` - path where NCCL include and lib directories can be found.
 * ``HOROVOD_NCCL_INCLUDE`` - path to NCCL include directory.
@@ -212,8 +239,9 @@ Possible values are given in curly brackets: {}.
 * ``HOROVOD_WITH_MPI`` - {1}. Require that Horovod is built with MPI support enabled.
 * ``HOROVOD_WITHOUT_MPI`` - {1}. Skip building with MPI support.
 * ``HOROVOD_GPU`` - {CUDA, ROCM}. Framework to use for GPU operations.
-* ``HOROVOD_GPU_ALLREDUCE`` - {NCCL, MPI, DDL}. Framework to use for GPU tensor allreduce.
-* ``HOROVOD_GPU_ALLGATHER`` - {MPI}. Framework to use for GPU tensor allgather.
+* ``HOROVOD_GPU_OPERATIONS`` - {NCCL, MPI}. Framework to use for GPU tensor allreduce, allgather, and broadcast.
+* ``HOROVOD_GPU_ALLREDUCE`` - {NCCL, MPI}. Framework to use for GPU tensor allreduce.
+* ``HOROVOD_GPU_ALLGATHER`` - {NCCL, MPI}. Framework to use for GPU tensor allgather.
 * ``HOROVOD_GPU_BROADCAST`` - {NCCL, MPI}. Framework to use for GPU tensor broadcast.
 * ``HOROVOD_ALLOW_MIXED_GPU_IMPL`` - {1}. Allow Horovod to install with NCCL allreduce and MPI GPU allgather / broadcast.  Not recommended due to a possible deadlock.
 * ``HOROVOD_CPU_OPERATIONS`` - {MPI, GLOO, CCL}. Framework to use for CPU tensor allreduce, allgather, and broadcast.

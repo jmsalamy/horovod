@@ -6,6 +6,14 @@
 Horovod
 =======
 
+.. raw:: html
+
+   <div align="center">
+
+.. image:: https://badge.fury.io/py/horovod.svg
+   :target: https://badge.fury.io/py/horovod
+   :alt: PyPI Version
+
 .. image:: https://badge.buildkite.com/6f976bc161c69d9960fc00de01b69deb6199b25680a09e5e26.svg?branch=master
    :target: https://buildkite.com/horovod/horovod
    :alt: Build Status
@@ -30,6 +38,10 @@ Horovod
    :target: https://pepy.tech/project/horovod
    :alt: Downloads
 
+.. raw:: html
+
+   </div>
+
 .. inclusion-marker-start-do-not-remove
 
 |
@@ -52,8 +64,13 @@ about who's involved and how Horovod plays a role, read the LF AI `announcement 
 
 .. contents::
 
+|
 
-The full documentation and an API reference are published at https://horovod.readthedocs.io/en/latest.
+Documentation
+-------------
+
+- `Latest Release <https://horovod.readthedocs.io/en/stable>`_
+- `master <https://horovod.readthedocs.io/en/latest>`_
 
 |
 
@@ -88,9 +105,7 @@ Install
 -------
 To install Horovod:
 
-1. Install `Open MPI <https://www.open-mpi.org/>`_ or another MPI implementation. Learn how to install Open MPI `on this page <https://www.open-mpi.org/faq/?category=building#easy-build>`_.
-
-   **Note**: Open MPI 3.1.3 has an issue that may cause hangs. The recommended fix is to downgrade to Open MPI 3.1.2 or upgrade to Open MPI 4.0.0.
+1. Install `CMake <https://cmake.org/install/>`__
 
 .. raw:: html
 
@@ -118,13 +133,15 @@ To install Horovod:
 
    .. code-block:: bash
 
-      $ HOROVOD_GPU_ALLREDUCE=NCCL HOROVOD_GPU_BROADCAST=NCCL pip install horovod
-
-This basic installation is good for laptops and for getting to know Horovod.
+      $ HOROVOD_GPU_OPERATIONS=NCCL pip install horovod
 
 For more details on installing Horovod with GPU support, read `Horovod on GPU <docs/gpus.rst>`_.
 
 For the full list of Horovod installation options, read the `Installation Guide <docs/install.rst>`_.
+
+If you want to use MPI, read `Horovod with MPI <docs/mpi.rst>`_.
+
+If you want to use Conda, read `Building a Conda environment with GPU support for Horovod <docs/conda.rst>`_.
 
 If you want to use Docker, read `Horovod in Docker <docs/docker.rst>`_.
 
@@ -267,26 +284,25 @@ See `Run Horovod <docs/running.rst>`_ for more details, including RoCE/InfiniBan
 
 5. To run in Kubernetes, see `Kubeflow <https://github.com/kubeflow/examples/tree/master/demos/yelp_demo/ks_app/vendor/kubeflow/mpi-job>`_, `MPI Operator <https://github.com/kubeflow/mpi-operator/>`_, `Helm Chart <https://github.com/kubernetes/charts/tree/master/stable/horovod/>`_, `FfDL <https://github.com/IBM/FfDL/tree/master/etc/examples/horovod/>`_, and `Polyaxon <https://docs.polyaxon.com/integrations/horovod/>`_.
 
-6. To run in Spark, see `Spark <docs/spark.rst>`_.
+6. To run on Spark, see `Horovod on Spark <docs/spark.rst>`_.
 
-7. To run in Singularity, see `Singularity <https://github.com/sylabs/examples/tree/master/machinelearning/horovod>`_.
+7. To run on Ray, see `Horovod on Ray <docs/ray.rst>`_.
 
-8. To run in a LSF HPC cluster (e.g. Summit), see `LSF <docs/lsf.rst>`_.
+8. To run in Singularity, see `Singularity <https://github.com/sylabs/examples/tree/master/machinelearning/horovod>`_.
+
+9. To run in a LSF HPC cluster (e.g. Summit), see `LSF <docs/lsf.rst>`_.
 
 Gloo
 ----
 `Gloo <https://github.com/facebookincubator/gloo>`_ is an open source collective communications library developed by Facebook.
 
-Gloo comes included with Horovod, and allows users to run Horovod without requiring MPI to be installed. Gloo support only requires
-that you have `CMake <https://cmake.org/>`_ installed, and is only supported on Linux at this time.
+Gloo comes included with Horovod, and allows users to run Horovod without requiring MPI to be installed.
 
 For environments that have support both MPI and Gloo, you can choose to use Gloo at runtime by passing the ``--gloo`` argument to ``horovodrun``:
 
 .. code-block:: bash
 
      $ horovodrun --gloo -np 2 python train.py
-
-Gloo support is still early in its development, and more features are coming soon.
 
 mpi4py
 ------
@@ -362,6 +378,7 @@ See `here <docs/autotune.rst>`__ for full details and usage instructions.
 Guides
 ------
 1. Run distributed training in Microsoft Azure using `Batch AI and Horovod <https://github.com/Azure/BatchAI/tree/master/recipes/Horovod>`_.
+2. `Distributed model training using Horovod <https://spell.ml/blog/distributed-model-training-using-horovod-XvqEGRUAACgAa5th>`_.
 
 Send us links to any user guides you want to publish on this site
 

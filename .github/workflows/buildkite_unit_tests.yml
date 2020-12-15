@@ -1,0 +1,100 @@
+name: Unit Tests
+on:
+  push:
+    branches: "**"
+    tags-ignore: "**"
+
+  # This refers to pull_request events running in the target (base) repo
+  # https://docs.github.com/en/actions/reference/events-that-trigger-workflows#pull_request_target
+  # By default runs on these activity types only: opened, synchronize, reopened
+  pull_request_target:
+    branches: "**"
+
+jobs:
+  # buildkite does not run tests when there are no code changes, unless master is build
+  # downloading unit tests only works in the horovod repository
+  buildkite:
+    name: "Buildkite Unit Tests"
+    runs-on: ubuntu-latest
+    # this workflow only runs
+    # - when a secrets.BUILDKITE_TOKEN is defined (i.e. in 'horovod/horovod' repo, not in forks)
+    #   we cannot test for secrets here, so we test for github.repository
+    #   https://github.community/t/how-can-i-test-if-secrets-are-available-in-an-action/17911/7
+    # AND
+    # - on push events OR on pull_request_target events for pull requests from forks
+    if: >
+      github.repository == 'horovod/horovod' && (
+        github.event_name == 'push' ||
+        github.event_name == 'pull_request_target' && github.event.pull_request.head.repo.full_name != github.repository
+      )
+
+    steps:
+    - name: Condition
+      id: check-for-changes-needed
+      # 'Check for commit changes' is not needed for push to master
+      if: ( ! ( github.event_name == 'push' && github.ref == 'refs/heads/master' ) )
+      run: echo "Will have to 'Check for commit changes'"
+
+    - name: Checkout Git
+      uses: actions/checkout@v2
+      if: steps.check-for-changes-needed.outcome != 'skipped'
+
+    - name: Setup Python
+      uses: actions/setup-python@v2
+      if: steps.check-for-changes-needed.outcome != 'skipped'
+      with:
+        python-version: '3'
+
+    - name: Install Python Dependencies
+      if: steps.check-for-changes-needed.outcome != 'skipped'
+      run: |
+        python -m pip install --upgrade --force --no-cache-dir pip
+        pip install --force --no-cache-dir requests
+
+    - name: Check for commit changes
+      id: commit-changes
+      env:
+        BUILDKITE_COMMIT: ${{ github.sha }}
+        BUILDKITE_PIPELINE_DEFAULT_BRANCH: master
+      run: |
+        if [[ "${{ steps.check-for-changes-needed.outcome }}" == "skipped" ]]
+        then
+          echo "::set-output name=changed-code-files::this is a push to master"
+        else
+          files=$(python .buildkite/get_changed_code_files.py || echo failure)
+          echo changed code files: $files
+          echo "::set-output name=changed-code-files::$(echo $files)"
+        fi
+      shell: bash
+      continue-on-error: true
+
+    - name: Download Buildkite Artifacts
+      id: download
+      uses: EnricoMi/download-buildkite-artifact-action@master
+      if: steps.commit-changes.outputs.changed-code-files != ''
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        buildkite_token: ${{ secrets.BUILDKITE_TOKEN }}
+        ignore_build_states: blocked,canceled,skipped,not_run
+        ignore_job_states: timed_out
+        output_path: test-results
+        log_level: DEBUG
+
+    - name: Unit Test Results
+      id: results
+      uses: EnricoMi/publish-unit-test-result-action@master
+      if: >
+        steps.download.outcome != 'skipped' &&
+        ! contains(fromJSON('[''blocked'', ''canceled'', ''skipped'', ''not_run'']'), steps.download.outputs.build-state)
+      with:
+        check_name: Unit Test Results
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        files: "test-results/**/*.xml"
+        log_level: DEBUG
+
+    - name: Upload Test Results
+      uses: actions/upload-artifact@v2
+      if: always()
+      with:
+        name: Unit Test Results
+        path: test-results/**/*.xml

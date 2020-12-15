@@ -16,13 +16,8 @@
 import os
 import sys
 
-try:
-    from shlex import quote
-except ImportError:
-    from pipes import quote
-
 from horovod.spark.task import task_exec
-from horovod.run.common.util import codec
+from horovod.runner.common.util import codec
 
 
 def main(driver_addresses, settings):
@@ -47,7 +42,7 @@ def main(driver_addresses, settings):
             print("Changing cwd from {} to {}".format(os.getcwd(), work_dir))
         os.chdir(work_dir)
 
-    task_exec(driver_addresses, settings, 'OMPI_COMM_WORLD_RANK')
+    task_exec(driver_addresses, settings, 'OMPI_COMM_WORLD_RANK', 'OMPI_COMM_WORLD_LOCAL_RANK')
 
 
 if __name__ == '__main__':

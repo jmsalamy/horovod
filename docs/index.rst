@@ -109,20 +109,30 @@ Guides
 
    running_include
 
+   elastic_include
+
    benchmarks_include
 
    inference_include
 
    gpus_include
 
+   mpi_include
+
+   oneccl_include
+
+   conda_include
+
    docker_include
 
    spark_include
 
+   ray_include
+
    lsf_include
 
    tensor-fusion_include
-   
+
    adasum_user_guide_include
 
    timeline_include

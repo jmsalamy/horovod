@@ -13,8 +13,6 @@
 # limitations under the License.
 # ==============================================================================
 
-from __future__ import absolute_import
-
 import horovod.spark.common._namedtuple_fix
 
 import copy
@@ -25,8 +23,9 @@ import time
 from pyspark import keyword_only
 from pyspark.ml.param.shared import Param, Params
 from pyspark.ml.util import MLWritable, MLReadable
+from pyspark.sql import SparkSession
 
-from horovod.run.common.util import codec
+from horovod.runner.common.util import codec
 from horovod.spark.common import util
 from horovod.spark.common.estimator import HorovodEstimator, HorovodModel
 from horovod.spark.common.params import EstimatorParams
@@ -173,7 +172,9 @@ class TorchEstimator(HorovodEstimator, TorchEstimatorParamsWritable,
                  validation_steps_per_epoch=None,
                  transformation_fn=None,
                  train_reader_num_workers=None,
-                 val_reader_num_workers=None):
+                 val_reader_num_workers=None,
+                 label_shapes=None):
+
         super(TorchEstimator, self).__init__()
         self._setDefault(loss_constructors=None,
                          input_shapes=None,
@@ -225,7 +226,8 @@ class TorchEstimator(HorovodEstimator, TorchEstimatorParamsWritable,
         util.check_shape_compatibility(metadata,
                                        self.getFeatureCols(),
                                        self.getLabelCols(),
-                                       input_shapes=self.getInputShapes())
+                                       input_shapes=self.getInputShapes(),
+                                       label_shapes=self.getLabelShapes())
 
     def _fit_on_prepared_data(self, backend, train_rows, val_rows, metadata, avg_row_size, dataset_idx=None):
         self._check_params(metadata)
@@ -446,4 +448,21 @@ class TorchModel(HorovodModel, TorchEstimatorParamsWritable, TorchEstimatorParam
 
                 yield Row(**fields)
 
-        return df.rdd.mapPartitions(predict).toDF()
+        spark0 = SparkSession._instantiatedSession
+
+        # Get a limited DF and make predictions and get the schema of the final DF
+        limited_pred_rdd = df.limit(100000).rdd.mapPartitions(predict)
+        limited_pred_df = spark0.createDataFrame(limited_pred_rdd, samplingRatio=1)
+        final_output_schema = limited_pred_df.schema
+
+        # Spark has to infer whether a filed is nullable or not from a limited number of samples.
+        # It does not always get it right. We copy the nullable boolean variable for the fields
+        # from the original dataframe to the final DF schema.
+        nullables = {field.name: field.nullable for field in df.schema.fields}
+        for field in final_output_schema.fields:
+            if field.name in nullables:
+                field.nullable = nullables[field.name]
+
+        pred_rdd = df.rdd.mapPartitions(predict)
+        # Use the schema from previous section to construct the final DF with prediction
+        return spark0.createDataFrame(pred_rdd, schema=final_output_schema)

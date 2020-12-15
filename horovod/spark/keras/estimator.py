@@ -13,12 +13,12 @@
 # limitations under the License.
 # ==============================================================================
 
-from __future__ import absolute_import
-
 import horovod.spark.common._namedtuple_fix
 
 import numbers
 import time
+
+from distutils.version import LooseVersion
 
 import numpy as np
 import tensorflow as tf
@@ -26,8 +26,9 @@ import tensorflow as tf
 from pyspark import keyword_only
 from pyspark.ml.util import MLWritable, MLReadable
 from pyspark.ml.param.shared import Param, Params
+from pyspark.sql import SparkSession
 
-from horovod.run.common.util import codec
+from horovod.runner.common.util import codec
 
 from horovod.spark.common import util
 from horovod.spark.common.estimator import HorovodEstimator, HorovodModel
@@ -160,6 +161,8 @@ class KerasEstimator(HorovodEstimator, KerasEstimatorParamsReadable,
 
     custom_objects = Param(Params._dummy(), 'custom_objects', 'custom objects')
     _keras_pkg_type = Param(Params._dummy(), '_keras_pkg_type', 'keras package type')
+    checkpoint_callback = Param(Params._dummy(), 'checkpoint_callback',
+                                'model checkpointing callback')
 
     @keyword_only
     def __init__(self,
@@ -188,13 +191,16 @@ class KerasEstimator(HorovodEstimator, KerasEstimatorParamsReadable,
                  validation_steps_per_epoch=None,
                  transformation_fn=None,
                  train_reader_num_workers=None,
-                 val_reader_num_workers=None):
+                 val_reader_num_workers=None,
+                 label_shapes=None,
+                 checkpoint_callback=None):
 
         super(KerasEstimator, self).__init__()
 
         self._setDefault(optimizer=None,
                          custom_objects={},
-                         _keras_pkg_type=None)
+                         _keras_pkg_type=None,
+                         checkpoint_callback=None)
 
         kwargs = self._input_kwargs
         self.setParams(**kwargs)
@@ -248,13 +254,20 @@ class KerasEstimator(HorovodEstimator, KerasEstimatorParamsReadable,
     def getCustomObjects(self):
         return self.getOrDefault(self.custom_objects)
 
+    def setCheckpointCallback(self, value):
+        return self._set(checkpoint_callback=value)
+
+    def getCheckpointCallback(self):
+        return self.getOrDefault(self.checkpoint_callback)
+
     def _check_metadata_compatibility(self, metadata):
         input_shapes, output_shapes = self.get_model_shapes()
         util.check_shape_compatibility(metadata,
                                        self.getFeatureCols(),
                                        self.getLabelCols(),
                                        input_shapes=input_shapes,
-                                       output_shapes=output_shapes)
+                                       output_shapes=output_shapes,
+                                       label_shapes=self.getLabelShapes())
 
     def get_model_shapes(self):
         model = self.getModel()
@@ -294,8 +307,8 @@ class KerasEstimator(HorovodEstimator, KerasEstimatorParamsReadable,
         if self.getVerbose():
             print('Resuming training from last checkpoint: {}'.format(last_ckpt_path))
 
-        model_bytes = store.read(last_ckpt_path)
-        return codec.dumps_base64(model_bytes)
+        return store.read_serialized_keras_model(
+            last_ckpt_path, self.getModel(), self.getCustomObjects())
 
     def _compile_model(self, keras_utils):
         # Compile the model with all the parameters
@@ -529,4 +542,23 @@ class KerasModel(HorovodModel, KerasEstimatorParamsReadable,
 
                 yield Row(**fields)
 
-        return df.rdd.mapPartitions(predict).toDF()
+        spark0 = SparkSession._instantiatedSession
+
+        # Get a limited DF and make predictions and get the schema of the final DF 
+        limited_pred_rdd = df.limit(100000).rdd.mapPartitions(predict)
+        limited_pred_df = spark0.createDataFrame(limited_pred_rdd, samplingRatio=1)
+        final_output_schema = limited_pred_df.schema
+
+
+        # Spark has to infer whether a filed is nullable or not from a limited number of samples.
+        # It does not always get it right. We copy the nullable boolean variable for the fields
+        # from the original dataframe to the final DF schema.
+        nullables = {field.name: field.nullable for field in df.schema.fields}
+        for field in final_output_schema.fields:
+            if field.name in nullables:
+                field.nullable = nullables[field.name]
+
+        pred_rdd = df.rdd.mapPartitions(predict)
+        # Use the schema from previous section to construct the final DF with prediction
+        return spark0.createDataFrame(pred_rdd, schema=final_output_schema)
+

@@ -29,14 +29,18 @@ if not hasattr(torch.jit, 'unused'):
     torch.jit.unused = lambda x: x
 
 
-_SYNC_BN_V2 = LooseVersion(torch.__version__) >= LooseVersion('1.6.0')
+_SYNC_BN_V2 = (
+    LooseVersion(torch.__version__) >= LooseVersion('1.5.0') and
+    LooseVersion(torch.__version__) <= LooseVersion('1.6.0')
+)
+_SYNC_BN_V3 = LooseVersion(torch.__version__) >= LooseVersion('1.6.0')
 
 
 class SyncBatchNorm(_BatchNorm):
-    """
-    Applies synchronous version of N-dimensional BatchNorm.  In this version, normalization
-    parameters are synchronized across workers during forward pass.  This is very useful in
-    situations where each GPU can fit a very small number of examples.
+    """Applies synchronous version of N-dimensional BatchNorm.
+
+    In this version, normalization parameters are synchronized across workers during forward pass.
+    This is very useful in situations where each GPU can fit a very small number of examples.
 
     See https://pytorch.org/docs/stable/nn.html#batchnorm2d for more details about BatchNorm.
 
@@ -53,7 +57,7 @@ class SyncBatchNorm(_BatchNorm):
             this module does not track such statistics and always uses batch
             statistics in both training and eval modes. Default: `True`
     
-    NOTE: only GPU input tensors are supported in the training mode.
+    .. note:: Only GPU input tensors are supported in the training mode.
     """
     def __init__(self, num_features, eps=1e-5, momentum=0.1, affine=True, track_running_stats=True):
         super().__init__(num_features, eps, momentum, affine, track_running_stats)
@@ -111,7 +115,7 @@ class _SyncBatchNorm(Function):
         mean_all = synchronize(mean_handle)
         invstd_all = synchronize(invstd_handle)
 
-        if _SYNC_BN_V2:
+        if _SYNC_BN_V3:
             counts_for_bngswc = count_all.view(-1).float().to(input.device)
         else:
             # backwards compatibility
@@ -161,11 +165,12 @@ class _SyncBatchNorm(Function):
             sum_dy = synchronize(sum_dy_handle)
             sum_dy_xmu = synchronize(sum_dy_xmu_handle)
 
-            if _SYNC_BN_V2:
-                mean_dy = sum_dy / count_all.sum()
-                mean_dy_xmu = sum_dy_xmu / count_all.sum()
+            if _SYNC_BN_V2 or _SYNC_BN_V3:
+                count_all_sum = count_all.sum()
+                mean_dy = sum_dy / count_all_sum
+                mean_dy_xmu = sum_dy_xmu / count_all_sum
             else:
-                # before 1.6.0, sum_dy was sum of means from every worker, so we just 
+                # before 1.5.0, sum_dy was sum of means from every worker, so we just 
                 # need to divide it by number of workers
                 mean_dy = sum_dy / size()
                 mean_dy_xmu = sum_dy_xmu / size()

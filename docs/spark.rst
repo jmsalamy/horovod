@@ -1,6 +1,6 @@
 .. inclusion-marker-start-do-not-remove
 
-Horovod in Spark
+Horovod on Spark
 ================
 
 The ``horovod.spark`` package provides a convenient wrapper around Horovod that makes running distributed training
@@ -97,21 +97,21 @@ and local filesystems.
 
 End-to-end example
 ------------------
-`keras_spark_rossmann_estimator.py script <../examples/keras_spark_rossmann_estimator.py>`__ provides
+`keras_spark_rossmann_estimator.py script <../examples/spark/keras/keras_spark_rossmann_estimator.py>`__ provides
 an example of end-to-end data preparation and training of a model for the
 `Rossmann Store Sales <https://www.kaggle.com/c/rossmann-store-sales>`__ Kaggle
 competition. It is inspired by an article `An Introduction to Deep Learning for Tabular Data <https://www.fast.ai/2018/04/29/categorical-embeddings/>`__
 and leverages the code of the notebook referenced in the article. The example is split into three parts:
 
 #. The first part performs complicated data preprocessing over an initial set of CSV files provided by the competition and gathered by the community.
-#. The second part defines a Keras model and performs a distributed training of the model using Horovod in Spark.
+#. The second part defines a Keras model and performs a distributed training of the model using Horovod on Spark.
 #. The third part performs prediction using the best model and creates a submission file.
 
 To run the example, be sure to install Horovod with ``[spark]``, then:
 
 .. code-block:: bash
 
-    $ wget https://raw.githubusercontent.com/horovod/horovod/master/examples/keras_spark_rossmann_estimator.py
+    $ wget https://raw.githubusercontent.com/horovod/horovod/master/examples/spark/keras/keras_spark_rossmann_estimator.py
     $ wget http://files.fast.ai/part2/lesson14/rossmann.tgz
     $ tar zxvf rossmann.tgz
     $ python keras_spark_rossmann_estimator.py
@@ -226,12 +226,12 @@ A toy example of running a Horovod job in Spark is provided below:
     [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
     >>>
 
-A more complete example can be found in `keras_spark_rossmann_run.py <../examples/keras_spark_rossmann_run.py>`__, which
+A more complete example can be found in `keras_spark_rossmann_run.py <../examples/spark/keras/keras_spark_rossmann_run.py>`__, which
 shows how you can use the low level ``horovod.spark.run`` API to train a model end-to-end in the following steps:
 
 .. code-block:: bash
 
-    $ wget https://raw.githubusercontent.com/horovod/horovod/master/examples/keras_spark_rossmann_run.py
+    $ wget https://raw.githubusercontent.com/horovod/horovod/master/examples/spark/keras/keras_spark_rossmann_run.py
     $ wget http://files.fast.ai/part2/lesson14/rossmann.tgz
     $ tar zxvf rossmann.tgz
     $ python keras_spark_rossmann_run.py
@@ -279,7 +279,7 @@ and training.
 
 Security
 --------
-Horovod in Spark uses Open MPI to run the Horovod jobs in Spark, so
+Horovod on Spark uses Open MPI to run the Horovod jobs in Spark, so
 it's as secure as the Open MPI implementation itself.
 
 Since Open MPI does not use encrypted communication and is capable of
@@ -290,5 +290,36 @@ Environment knobs
 -----------------
 * ``HOROVOD_SPARK_START_TIMEOUT`` - sets the default timeout for Spark tasks to spawn, register, and start running the code.  If executors for Spark tasks are scheduled on-demand and can take a long time to start, it may be useful to increase this timeout on a system level.
 
+Horovod on Databricks
+------------------------------
+To run Horovod in Spark on Databricks, create a Store instance with a DBFS path in one of the following patterns:
+
+* ``/dbfs/...``
+* ``dbfs:/...``
+* ``file:///dbfs/...``
+
+.. code-block:: python
+
+    store = Store.create(dbfs_path)
+    # or explicitly using DBFSLocalStore
+    store = DBFSLocalStore(dbfs_path)
+
+The `DBFSLocalStore` uses Databricks File System (DBFS) local file APIs
+(`AWS <https://docs.databricks.com/data/databricks-file-system.html#local-file-apis>`__ |
+`Azure <https://docs.microsoft.com/en-us/azure/databricks/data/databricks-file-system#--local-file-apis>`__)
+as a store of intermediate data and training artifacts.
+
+Databricks pre-configures GPU-aware scheduling on Databricks Runtime 7.0 ML GPU and above. See GPU scheduling instructions
+(`AWS <https://docs.databricks.com/clusters/gpu.html#gpu-scheduling-1>`__ |
+`Azure <https://docs.microsoft.com/en-us/azure/databricks/clusters/gpu#gpu-scheduling>`__)
+for details.
+
+With the Estimator API, horovod will launch ``# of tasks on each worker = # of GPUs on each worker``, and each task will
+pin GPU to the assigned GPU from spark.
+
+With the Run API, the function ``get_available_devices()`` from ``horovod.spark.task`` will return a list of assigned GPUs
+for the spark task from which ``get_available_devices()`` is called.
+See `keras_spark3_rossmann.py <../examples/spark/keras/keras_spark3_rossmann.py>`__ for an example of using
+``get_available_devices()`` with the Run API.
 
 .. inclusion-marker-end-do-not-remove
